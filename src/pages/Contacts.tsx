@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
+import { database, ref, set, remove, onValue } from "@/lib/firebase";
 
 interface Contact {
   id: string;
@@ -22,33 +23,61 @@ const Contacts = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const saved = localStorage.getItem("safeher_contacts");
-    if (saved) setContacts(JSON.parse(saved));
+    // Listen for real-time updates from Firebase
+    const contactsRef = ref(database, "emergency_contacts");
+    const unsubscribe = onValue(contactsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([key, val]: [string, any]) => ({
+          id: key,
+          name: val.name,
+          phone: val.phone,
+          relation: val.relation,
+        }));
+        setContacts(list);
+      } else {
+        setContacts([]);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
-  const save = (updated: Contact[]) => {
-    setContacts(updated);
-    localStorage.setItem("safeher_contacts", JSON.stringify(updated));
+  const saveToFirebase = async (id: string, contact: Omit<Contact, "id">) => {
+    await set(ref(database, `emergency_contacts/${id}`), contact);
   };
 
-  const handleSubmit = () => {
+  const removeFromFirebase = async (id: string) => {
+    await remove(ref(database, `emergency_contacts/${id}`));
+  };
+
+  const handleSubmit = async () => {
     if (!name || !phone) {
       toast({ title: "Name and phone are required", variant: "destructive" });
       return;
     }
-    if (editId) {
-      save(contacts.map((c) => (c.id === editId ? { ...c, name, phone, relation } : c)));
-      toast({ title: "Contact updated ✅" });
-    } else {
-      save([...contacts, { id: Date.now().toString(), name, phone, relation }]);
-      toast({ title: "Contact added ✅" });
+    try {
+      if (editId) {
+        await saveToFirebase(editId, { name, phone, relation });
+        toast({ title: "Contact updated ✅" });
+      } else {
+        const newId = Date.now().toString();
+        await saveToFirebase(newId, { name, phone, relation });
+        toast({ title: "Contact added ✅" });
+      }
+    } catch (error) {
+      console.error("Firebase error:", error);
+      toast({ title: "Failed to save contact", variant: "destructive" });
     }
     resetForm();
   };
 
-  const handleDelete = (id: string) => {
-    save(contacts.filter((c) => c.id !== id));
-    toast({ title: "Contact removed" });
+  const handleDelete = async (id: string) => {
+    try {
+      await removeFromFirebase(id);
+      toast({ title: "Contact removed" });
+    } catch (error) {
+      toast({ title: "Failed to delete contact", variant: "destructive" });
+    }
   };
 
   const handleEdit = (c: Contact) => {

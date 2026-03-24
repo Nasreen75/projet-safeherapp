@@ -4,6 +4,7 @@ import { Bot, Mic, MicOff, MapPin, Bell } from "lucide-react";
 import SOSButton from "@/components/SOSButton";
 import BottomNav from "@/components/BottomNav";
 import { useToast } from "@/hooks/use-toast";
+import { database, ref, push, set } from "@/lib/firebase";
 
 const Home = () => {
   const [userName, setUserName] = useState("User");
@@ -25,16 +26,28 @@ const Home = () => {
     }
   }, []);
 
-  const handleSOS = () => {
+  const handleSOS = async () => {
     const user = JSON.parse(localStorage.getItem("safeher_user") || "{}");
     const sosData = {
-      name: user.name,
-      phone: user.phone,
-      email: user.email,
-      location,
+      name: user.name || "Unknown",
+      phone: user.phone || "",
+      email: user.email || "",
+      location: location ? { lat: location.lat, lng: location.lng } : null,
       timestamp: new Date().toISOString(),
       status: "active",
     };
+
+    try {
+      // Save to Firebase Realtime Database under "users" collection
+      const sosRef = push(ref(database, "users"));
+      await set(sosRef, sosData);
+      toast({ title: "✅ SOS data saved to database!" });
+    } catch (error) {
+      console.error("Firebase write error:", error);
+      toast({ title: "Failed to save SOS data", variant: "destructive" });
+    }
+
+    // Also keep local backup
     const existing = JSON.parse(localStorage.getItem("safeher_sos_logs") || "[]");
     existing.push(sosData);
     localStorage.setItem("safeher_sos_logs", JSON.stringify(existing));

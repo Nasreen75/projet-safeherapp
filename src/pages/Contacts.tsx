@@ -23,13 +23,31 @@ const Contacts = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const saved = localStorage.getItem("safeher_contacts");
-    if (saved) setContacts(JSON.parse(saved));
+    // Listen for real-time updates from Firebase
+    const contactsRef = ref(database, "emergency_contacts");
+    const unsubscribe = onValue(contactsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([key, val]: [string, any]) => ({
+          id: key,
+          name: val.name,
+          phone: val.phone,
+          relation: val.relation,
+        }));
+        setContacts(list);
+      } else {
+        setContacts([]);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
-  const save = (updated: Contact[]) => {
-    setContacts(updated);
-    localStorage.setItem("safeher_contacts", JSON.stringify(updated));
+  const saveToFirebase = async (id: string, contact: Omit<Contact, "id">) => {
+    await set(ref(database, `emergency_contacts/${id}`), contact);
+  };
+
+  const removeFromFirebase = async (id: string) => {
+    await remove(ref(database, `emergency_contacts/${id}`));
   };
 
   const handleSubmit = () => {

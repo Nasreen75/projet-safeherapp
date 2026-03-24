@@ -50,24 +50,34 @@ const Contacts = () => {
     await remove(ref(database, `emergency_contacts/${id}`));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name || !phone) {
       toast({ title: "Name and phone are required", variant: "destructive" });
       return;
     }
-    if (editId) {
-      save(contacts.map((c) => (c.id === editId ? { ...c, name, phone, relation } : c)));
-      toast({ title: "Contact updated ✅" });
-    } else {
-      save([...contacts, { id: Date.now().toString(), name, phone, relation }]);
-      toast({ title: "Contact added ✅" });
+    try {
+      if (editId) {
+        await saveToFirebase(editId, { name, phone, relation });
+        toast({ title: "Contact updated ✅" });
+      } else {
+        const newId = Date.now().toString();
+        await saveToFirebase(newId, { name, phone, relation });
+        toast({ title: "Contact added ✅" });
+      }
+    } catch (error) {
+      console.error("Firebase error:", error);
+      toast({ title: "Failed to save contact", variant: "destructive" });
     }
     resetForm();
   };
 
-  const handleDelete = (id: string) => {
-    save(contacts.filter((c) => c.id !== id));
-    toast({ title: "Contact removed" });
+  const handleDelete = async (id: string) => {
+    try {
+      await removeFromFirebase(id);
+      toast({ title: "Contact removed" });
+    } catch (error) {
+      toast({ title: "Failed to delete contact", variant: "destructive" });
+    }
   };
 
   const handleEdit = (c: Contact) => {

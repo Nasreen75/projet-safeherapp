@@ -4,6 +4,7 @@ import { Bot, Mic, MicOff, MapPin, Bell } from "lucide-react";
 import SOSButton from "@/components/SOSButton";
 import BottomNav from "@/components/BottomNav";
 import { useToast } from "@/hooks/use-toast";
+import { database, ref, push, set } from "@/lib/firebase";
 
 const Home = () => {
   const [userName, setUserName] = useState("User");

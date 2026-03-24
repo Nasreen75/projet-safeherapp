@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
+import { database, ref, set, remove, onValue } from "@/lib/firebase";
 
 interface Contact {
   id: string;

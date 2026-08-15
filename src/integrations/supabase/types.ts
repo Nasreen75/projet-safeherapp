@@ -41,6 +41,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sos_alerts: {
+        Row: {
+          contacts_notified: number
+          created_at: string
+          device_id: string
+          email: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          message: string | null
+          name: string | null
+          phone: string | null
+          status: string
+        }
+        Insert: {
+          contacts_notified?: number
+          created_at?: string
+          device_id: string
+          email?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          message?: string | null
+          name?: string | null
+          phone?: string | null
+          status?: string
+        }
+        Update: {
+          contacts_notified?: number
+          created_at?: string
+          device_id?: string
+          email?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          message?: string | null
+          name?: string | null
+          phone?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

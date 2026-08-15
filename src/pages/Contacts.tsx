@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
+import { getDeviceId } from "@/lib/device";
 
 interface Contact {
   id: string;
@@ -13,14 +14,6 @@ interface Contact {
   relation: string | null;
 }
 
-const getDeviceId = () => {
-  let id = localStorage.getItem("safeher_device_id");
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem("safeher_device_id", id);
-  }
-  return id;
-};
 
 const Contacts = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);

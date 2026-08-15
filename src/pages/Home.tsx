@@ -138,7 +138,15 @@ const Home = () => {
         <QuickAction icon="🤖" title="AI Assistant" desc="Get safety tips & help" onClick={() => navigate("/ai-bot")} />
       </div>
 
+      <SOSAlertSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        contacts={alertContacts}
+        message={alertMessage}
+      />
+
       <BottomNav />
+
     </div>
   );
 };

@@ -4,14 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
-import { database, ref, set, remove, onValue } from "@/lib/firebase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Contact {
   id: string;
   name: string;
   phone: string;
-  relation: string;
+  relation: string | null;
 }
+
+const getDeviceId = () => {
+  let id = localStorage.getItem("safeher_device_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("safeher_device_id", id);
+  }
+  return id;
+};
 
 const Contacts = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -21,70 +30,92 @@ const Contacts = () => {
   const [phone, setPhone] = useState("");
   const [relation, setRelation] = useState("");
   const { toast } = useToast();
+  const deviceId = getDeviceId();
+
+  const loadContacts = async () => {
+    const { data, error } = await supabase
+      .from("emergency_contacts")
+      .select("id, name, phone, relation")
+      .eq("device_id", deviceId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      console.error(error);
+      toast({ title: "Failed to load contacts", variant: "destructive" });
+      return;
+    }
+    setContacts(data ?? []);
+  };
 
   useEffect(() => {
-    // Listen for real-time updates from Firebase
-    const contactsRef = ref(database, "emergency_contacts");
-    const unsubscribe = onValue(contactsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const list = Object.entries(data).map(([key, val]: [string, any]) => ({
-          id: key,
-          name: val.name,
-          phone: val.phone,
-          relation: val.relation,
-        }));
-        setContacts(list);
-      } else {
-        setContacts([]);
-      }
-    });
-    return () => unsubscribe();
+    loadContacts();
+
+    const channel = supabase
+      .channel("emergency_contacts_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "emergency_contacts" },
+        () => loadContacts()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saveToFirebase = async (id: string, contact: Omit<Contact, "id">) => {
-    await set(ref(database, `emergency_contacts/${id}`), contact);
-  };
-
-  const removeFromFirebase = async (id: string) => {
-    await remove(ref(database, `emergency_contacts/${id}`));
-  };
-
   const handleSubmit = async () => {
-    if (!name || !phone) {
+    if (!name.trim() || !phone.trim()) {
       toast({ title: "Name and phone are required", variant: "destructive" });
       return;
     }
-    try {
-      if (editId) {
-        await saveToFirebase(editId, { name, phone, relation });
-        toast({ title: "Contact updated ✅" });
-      } else {
-        const newId = Date.now().toString();
-        await saveToFirebase(newId, { name, phone, relation });
-        toast({ title: "Contact added ✅" });
+
+    if (editId) {
+      const { error } = await supabase
+        .from("emergency_contacts")
+        .update({ name: name.trim(), phone: phone.trim(), relation: relation.trim() || null })
+        .eq("id", editId);
+      if (error) {
+        console.error(error);
+        toast({ title: "Failed to update contact", variant: "destructive" });
+        return;
       }
-    } catch (error) {
-      console.error("Firebase error:", error);
-      toast({ title: "Failed to save contact", variant: "destructive" });
+      toast({ title: "Contact updated ✅" });
+    } else {
+      const { error } = await supabase.from("emergency_contacts").insert({
+        device_id: deviceId,
+        name: name.trim(),
+        phone: phone.trim(),
+        relation: relation.trim() || null,
+      });
+      if (error) {
+        console.error(error);
+        toast({ title: "Failed to save contact", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Contact added ✅" });
     }
+
+    await loadContacts();
     resetForm();
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await removeFromFirebase(id);
-      toast({ title: "Contact removed" });
-    } catch (error) {
+    const { error } = await supabase.from("emergency_contacts").delete().eq("id", id);
+    if (error) {
+      console.error(error);
       toast({ title: "Failed to delete contact", variant: "destructive" });
+      return;
     }
+    toast({ title: "Contact removed" });
+    await loadContacts();
   };
 
   const handleEdit = (c: Contact) => {
     setEditId(c.id);
     setName(c.name);
     setPhone(c.phone);
-    setRelation(c.relation);
+    setRelation(c.relation ?? "");
     setShowForm(true);
   };
 

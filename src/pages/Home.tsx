@@ -3,13 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { Bot, Mic, MicOff, MapPin, Bell } from "lucide-react";
 import SOSButton from "@/components/SOSButton";
 import BottomNav from "@/components/BottomNav";
+import SOSAlertSheet from "@/components/SOSAlertSheet";
 import { useToast } from "@/hooks/use-toast";
-import { database, ref, push, set } from "@/lib/firebase";
+import { triggerSos, SosContact } from "@/lib/sos";
 
 const Home = () => {
   const [userName, setUserName] = useState("User");
   const [isListening, setIsListening] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [alertContacts, setAlertContacts] = useState<SosContact[]>([]);
+  const [alertMessage, setAlertMessage] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -26,32 +30,35 @@ const Home = () => {
     }
   }, []);
 
+  const getFreshLocation = () =>
+    new Promise<{ lat: number; lng: number } | null>((resolve) => {
+      if (!navigator.geolocation) return resolve(location);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(location),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    });
+
   const handleSOS = async () => {
-    const user = JSON.parse(localStorage.getItem("safeher_user") || "{}");
-    const sosData = {
-      name: user.name || "Unknown",
-      phone: user.phone || "",
-      email: user.email || "",
-      location: location ? { lat: location.lat, lng: location.lng } : null,
-      timestamp: new Date().toISOString(),
-      status: "active",
-    };
-
     try {
-      // Save to Firebase Realtime Database under "users" collection
-      const sosRef = push(ref(database, "users"));
-      await set(sosRef, sosData);
-      toast({ title: "✅ SOS data saved to database!" });
+      const fresh = await getFreshLocation();
+      if (fresh) setLocation(fresh);
+      const { contacts, message } = await triggerSos(fresh);
+      setAlertContacts(contacts);
+      setAlertMessage(message);
+      setSheetOpen(true);
+      toast({
+        title: contacts.length
+          ? `🚨 SOS ready for ${contacts.length} contact${contacts.length > 1 ? "s" : ""}`
+          : "🚨 SOS saved — no contacts yet",
+      });
     } catch (error) {
-      console.error("Firebase write error:", error);
-      toast({ title: "Failed to save SOS data", variant: "destructive" });
+      console.error("SOS error:", error);
+      toast({ title: "Failed to trigger SOS", variant: "destructive" });
     }
-
-    // Also keep local backup
-    const existing = JSON.parse(localStorage.getItem("safeher_sos_logs") || "[]");
-    existing.push(sosData);
-    localStorage.setItem("safeher_sos_logs", JSON.stringify(existing));
   };
+
 
   const toggleVoiceDetection = () => {
     setIsListening(!isListening);
